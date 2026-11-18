@@ -63,6 +63,8 @@ export interface Message {
 export interface Conversation {
   id: string;
   listingId: string;
+  buyerId?: string;
+  sellerId?: string;
   listing: {
     id: string;
     platformName: string;
@@ -95,6 +97,9 @@ export interface Conversation {
   createdAt: string;
   messages?: Message[];
   flaggedCount?: number;
+  _count?: {
+    messages?: number;
+  };
 }
 
 export interface AuditLog {

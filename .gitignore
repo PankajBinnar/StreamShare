@@ -12,6 +12,7 @@ out/
 # TypeScript build output
 dist/
 server/dist/
+*.tsbuildinfo
 
 # Environment files (keep .env.example)
 .env
