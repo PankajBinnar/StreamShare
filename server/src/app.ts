@@ -69,6 +69,19 @@ export function createApp(): Express {
   });
 
   // 7. Mount Core API Routes
+  app.get('/', (req, res) => {
+    res.status(200).json({
+      name: 'StreamShare P2P Secure API',
+      status: 'online',
+      message: 'Backend server is operational and secure.',
+      endpoints: {
+        health: '/api/health',
+        listings: '/api/listings',
+        auth: '/api/auth'
+      }
+    });
+  });
+
   app.use('/api', apiRouter);
 
   // 8. 404 and Error Handling
