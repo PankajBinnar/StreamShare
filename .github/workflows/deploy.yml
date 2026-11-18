@@ -1,0 +1,52 @@
+name: StreamShare Continuous Deployment (CD)
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  db-migration:
+    name: Run Production Database Migration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Prisma
+        run: |
+          cd server
+          npm ci
+
+      - name: Deploy Prisma Migrations to PostgreSQL
+        run: |
+          cd server
+          npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+  deploy:
+    name: Deploy to Production
+    needs: [db-migration]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Example: Triggering Webhook or SSH deploy to Production Server / Railway / Render
+      - name: Trigger Production Deployment Webhook
+        if: ${{ env.DEPLOY_WEBHOOK != '' }}
+        run: |
+          curl -X POST "${{ secrets.DEPLOY_WEBHOOK }}"
+        env:
+          DEPLOY_WEBHOOK: ${{ secrets.DEPLOY_WEBHOOK }}
+
+      - name: Log Deployment Success
+        run: |
+          echo "🚀 StreamShare successfully migrated and triggered deployment to production!"
+

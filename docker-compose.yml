@@ -1,0 +1,27 @@
+# StreamShare Database Stack
+# Note: If you already have a Redis Stack running on port 6379, you do NOT need 
+# to add another Redis container. StreamShare will automatically connect to your
+# existing Redis instance at redis://localhost:6379 configured in server/.env.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: streamshare_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: streamshare_user
+      POSTGRES_PASSWORD: streamshare_secure_password_2026
+      POSTGRES_DB: streamshare_db
+    ports:
+      - "5433:5432" # Mapped to 5433 to avoid conflicts with any local PostgreSQL instance
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streamshare_user -d streamshare_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local

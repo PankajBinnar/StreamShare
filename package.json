@@ -1,0 +1,30 @@
+{
+  "name": "streamshare",
+  "version": "1.0.0",
+  "description": "Production-ready, highly secure Peer-to-Peer (P2P) OTT Subscription Classifieds and Direct Messaging Marketplace",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "db:up": "docker-compose up -d",
+    "db:down": "docker-compose down",
+    "db:migrate": "npm --prefix server run db:migrate",
+    "db:seed": "npm --prefix server run db:seed"
+  },
+  "keywords": [
+    "ott",
+    "marketplace",
+    "p2p",
+    "chat",
+    "security",
+    "socket.io",
+    "nextjs",
+    "express",
+    "prisma",
+    "postgresql"
+  ],
+  "author": "StreamShare Architecture Team",
+  "license": "MIT"
+}
+
