@@ -1,9 +1,10 @@
+// @ts-ignore
 import Redis from 'ioredis';
 import { env } from './environment.js';
 import { logger } from './logger.js';
 
 class CacheService {
-  private redisClient: Redis | null = null;
+  private redisClient: any = null;
   private isConnected = false;
   // In-memory fallback cache for resilience if Redis is temporarily unreachable
   private memoryFallback = new Map<string, { value: string; expiresAt: number }>();
@@ -18,7 +19,7 @@ class CacheService {
       this.redisClient = new Redis(env.REDIS_URL, {
         maxRetriesPerRequest: 1,
         enableOfflineQueue: false,
-        retryStrategy(times) {
+        retryStrategy(times: number) {
           // Reconnect with capped backoff up to 3000ms
           return Math.min(times * 100, 3000);
         },
@@ -29,7 +30,7 @@ class CacheService {
         logger.info('✅ Successfully connected to Redis Cache Stack', { url: env.REDIS_URL });
       });
 
-      this.redisClient.on('error', (err) => {
+      this.redisClient.on('error', (err: any) => {
         this.isConnected = false;
         logger.warn('Redis Cache Stack connection warning. Active fallback to in-memory cache.', {
           error: err.message,
