@@ -3,6 +3,7 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, Mail, Film, AlertCircle, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
 
@@ -11,7 +12,7 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/';
 
-  const { login, isAuthenticated } = useAuth();
+  const { login, loginWithGoogle, isAuthenticated } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +23,25 @@ function LoginContent() {
     router.push(redirect);
     return null;
   }
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    if (credentialResponse.credential) {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const res = await loginWithGoogle(credentialResponse.credential);
+        if (res.success) {
+          router.push(redirect);
+        } else {
+          setError(res.error || 'Google login failed.');
+        }
+      } catch (err: any) {
+        setError('Network communication failed during Google login.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +91,32 @@ function LoginContent() {
             <span>{error}</span>
           </div>
         )}
+
+        {/* Google Authentication */}
+        <div className="space-y-3">
+          <div className="flex justify-center w-full [&>div]:w-full">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => setError('Google sign-in was cancelled or failed.')}
+              theme="outline"
+              size="large"
+              width="100%"
+              text="signin_with"
+              shape="rectangular"
+            />
+          </div>
+
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-700/80"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-surface px-3 text-slate-400 font-mono font-bold tracking-wider">
+                OR
+              </span>
+            </div>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

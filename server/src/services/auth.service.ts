@@ -1,4 +1,6 @@
 import { prisma } from '../config/prisma.js';
+import { OAuth2Client } from 'google-auth-library';
+import { env } from '../config/environment.js';
 import {
   hashPassword,
   verifyPassword,
@@ -115,6 +117,13 @@ export class AuthService {
       throw {
         statusCode: 403,
         message: 'Account suspended due to policy violations. Contact admin support.',
+      };
+    }
+
+    if (!user.passwordHash) {
+      throw {
+        statusCode: 400,
+        message: 'This account was registered using Google Sign-In. Please click "Continue with Google".',
       };
     }
 
@@ -280,6 +289,123 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  /**
+   * Google OAuth 2.0 / OpenID Connect Authentication & Registration
+   */
+  async googleAuth(idToken: string): Promise<AuthResult> {
+    const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID);
+    let ticket;
+    try {
+      ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: env.GOOGLE_CLIENT_ID,
+      });
+    } catch (err: any) {
+      logger.warn('Google ID token verification failed', { error: err.message });
+      throw { statusCode: 401, message: 'Invalid or expired Google authentication credential.' };
+    }
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      throw { statusCode: 400, message: 'Google profile did not contain a valid email address.' };
+    }
+
+    const email = payload.email.toLowerCase();
+    const googleId = payload.sub;
+    const name = payload.name;
+    const picture = payload.picture || null;
+
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [{ googleId }, { email }],
+      },
+    });
+
+    if (user) {
+      if (user.isBanned) {
+        throw {
+          statusCode: 403,
+          message: 'Account suspended due to policy violations. Contact admin support.',
+        };
+      }
+
+      // Link googleId or update avatar if missing
+      if (!user.googleId || (!user.avatarUrl && picture)) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            googleId: user.googleId || googleId,
+            avatarUrl: user.avatarUrl || picture,
+          },
+        });
+      }
+    } else {
+      // Auto-register new user
+      let baseUsername = (name || email.split('@')[0])
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .substring(0, 20);
+      if (baseUsername.length < 3) {
+        baseUsername = `user_${Date.now().toString().slice(-4)}`;
+      }
+
+      let finalUsername = baseUsername;
+      const existingUsername = await prisma.user.findUnique({
+        where: { username: finalUsername },
+      });
+      if (existingUsername) {
+        finalUsername = `${baseUsername}_${Math.floor(100 + Math.random() * 900)}`;
+      }
+
+      user = await prisma.user.create({
+        data: {
+          email,
+          username: finalUsername,
+          googleId,
+          authProvider: 'GOOGLE',
+          avatarUrl: picture,
+          role: Role.USER,
+        },
+      });
+
+      logger.info('New user auto-registered via Google OAuth', { userId: user.id, email: user.email });
+    }
+
+    const tokenPayload: TokenPayload = {
+      userId: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+    };
+
+    const accessToken = generateAccessToken(tokenPayload);
+    const refreshToken = generateRefreshToken(tokenPayload);
+
+    const tokenHash = hashToken(refreshToken);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    logger.info('User authenticated successfully via Google', { userId: user.id, role: user.role });
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+      },
+    };
   }
 }
 

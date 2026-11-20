@@ -20,6 +20,7 @@ const envSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.string().transform((val) => parseInt(val, 10)).default('100'),
   AUTH_RATE_LIMIT_MAX: z.string().transform((val) => parseInt(val, 10)).default('10'),
   CHAT_RATE_LIMIT_MAX: z.string().transform((val) => parseInt(val, 10)).default('60'),
+  GOOGLE_CLIENT_ID: z.string().default('349524862127-fa15jor6r72j5opmrkqdb5frv4kdlcio.apps.googleusercontent.com'),
 });
 
 const parsed = envSchema.safeParse(process.env);

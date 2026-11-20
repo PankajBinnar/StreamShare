@@ -100,6 +100,27 @@ export class AuthController {
       data: profile,
     });
   }
+
+  async googleAuth(req: Request, res: Response): Promise<void> {
+    const { idToken } = req.body;
+    if (!idToken) {
+      res.status(400).json({ success: false, error: 'Google idToken is required.' });
+      return;
+    }
+
+    const result = await authService.googleAuth(idToken);
+
+    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
+
+    res.status(200).json({
+      success: true,
+      message: 'Authenticated successfully with Google.',
+      data: {
+        accessToken: result.accessToken,
+        user: result.user,
+      },
+    });
+  }
 }
 
 export const authController = new AuthController();

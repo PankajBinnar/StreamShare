@@ -31,6 +31,12 @@ const loginSchema = z.object({
   }),
 });
 
+const googleAuthSchema = z.object({
+  body: z.object({
+    idToken: z.string().min(1, 'Google idToken is required'),
+  }),
+});
+
 // Auth Routes with Brute Force Throttling
 router.post('/register', authLimiter, validateRequest(registerSchema), (req, res) =>
   authController.register(req, res)
@@ -38,6 +44,10 @@ router.post('/register', authLimiter, validateRequest(registerSchema), (req, res
 
 router.post('/login', authLimiter, validateRequest(loginSchema), (req, res) =>
   authController.login(req, res)
+);
+
+router.post('/google', authLimiter, validateRequest(googleAuthSchema), (req, res) =>
+  authController.googleAuth(req, res)
 );
 
 router.post('/refresh', authLimiter, (req, res) =>

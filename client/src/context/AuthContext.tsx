@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { User, Role } from '../types';
 import { fetchApi, setAccessToken, getAccessToken } from '../lib/api';
 
@@ -11,6 +12,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (idToken: string) => Promise<{ success: boolean; error?: string }>;
   register: (
     email: string,
     username: string,
@@ -78,6 +80,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (idToken: string) => {
+    setIsLoading(true);
+    try {
+      const res = await fetchApi<{ accessToken: string; user: User }>('/auth/google', {
+        method: 'POST',
+        requiresAuth: false,
+        body: JSON.stringify({ idToken }),
+      });
+
+      if (res.success && res.data) {
+        setAccessToken(res.data.accessToken);
+        setToken(res.data.accessToken);
+        setUser(res.data.user);
+        return { success: true };
+      }
+
+      return { success: false, error: res.error || 'Google authentication failed' };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const register = async (email: string, username: string, password: string, role?: Role) => {
     setIsLoading(true);
     try {
@@ -125,12 +149,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user,
     isAdmin: user?.role === 'ADMIN',
     login,
+    loginWithGoogle,
     register,
     logout,
     refreshUser,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  const googleClientId =
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+    '349524862127-fa15jor6r72j5opmrkqdb5frv4kdlcio.apps.googleusercontent.com';
+
+  return (
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    </GoogleOAuthProvider>
+  );
 }
 
 export function useAuth() {
