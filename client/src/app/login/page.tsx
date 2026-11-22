@@ -62,12 +62,6 @@ function LoginContent() {
     }
   };
 
-  // Demo accounts helper for immediate testing
-  const selectDemoAccount = (accEmail: string, accPass: string) => {
-    setEmail(accEmail);
-    setPassword(accPass);
-  };
-
   return (
     <div className="max-w-md mx-auto my-12 space-y-6">
       {/* Brand Header */}
@@ -162,52 +156,6 @@ function LoginContent() {
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
-
-        {/* Quick Demo Credentials */}
-        <div className="pt-4 border-t border-slate-800 space-y-2">
-          <span className="text-[11px] font-mono uppercase text-slate-400 block font-semibold">
-            One-Click Test Accounts:
-          </span>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => selectDemoAccount('admin@streamshare.io', 'AdminSecurePass2026!')}
-              className="p-2 rounded-xl bg-red-950/40 border border-red-500/30 text-red-300 hover:bg-red-900/40 text-left transition-colors"
-            >
-              <div className="font-bold flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-red-400" /> Admin
-              </div>
-              <div className="text-[10px] text-slate-400">admin@streamshare.io</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectDemoAccount('alice@streamshare.io', 'UserSecurePass2026!')}
-              className="p-2 rounded-xl bg-surfaceLight border border-slate-700 text-slate-200 hover:bg-slate-800 text-left transition-colors"
-            >
-              <div className="font-bold">Alice (Seller)</div>
-              <div className="text-[10px] text-slate-400">alice@streamshare.io</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectDemoAccount('bob@streamshare.io', 'UserSecurePass2026!')}
-              className="p-2 rounded-xl bg-surfaceLight border border-slate-700 text-slate-200 hover:bg-slate-800 text-left transition-colors"
-            >
-              <div className="font-bold">Bob (Seller)</div>
-              <div className="text-[10px] text-slate-400">bob@streamshare.io</div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => selectDemoAccount('charlie@streamshare.io', 'UserSecurePass2026!')}
-              className="p-2 rounded-xl bg-surfaceLight border border-slate-700 text-slate-200 hover:bg-slate-800 text-left transition-colors"
-            >
-              <div className="font-bold">Charlie (Buyer)</div>
-              <div className="text-[10px] text-slate-400">charlie@streamshare.io</div>
-            </button>
-          </div>
-        </div>
       </div>
 
       <div className="text-center text-xs text-slate-400">

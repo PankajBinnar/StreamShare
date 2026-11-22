@@ -44,11 +44,13 @@ export default function AdminChatsModerationPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [liveAlerts, setLiveAlerts] = useState<any[]>([]);
 
-  // Guard: Admin role required
+  // Forward all legacy /admin/chats visits to unified dashboard
   useEffect(() => {
     if (!authLoading) {
       if (!isAuthenticated || !isAdmin) {
-        router.push('/');
+        router.push('/admin/login');
+      } else {
+        router.push('/admin/dashboard');
       }
     }
   }, [authLoading, isAuthenticated, isAdmin, router]);

@@ -13,7 +13,12 @@ router.use(requireAdminIp);
 
 // Admin Moderation Endpoints
 router.get('/dashboard', (req, res) => adminController.getDashboard(req, res));
+router.get('/users', (req, res) => adminController.getUsers(req, res));
+router.delete('/users/:userId', (req, res) => adminController.deleteUser(req, res));
+router.get('/listings', (req, res) => adminController.getListings(req, res));
+router.delete('/listings/:listingId', (req, res) => adminController.deleteListing(req, res));
 router.get('/conversations', (req, res) => adminController.getConversations(req, res));
+router.delete('/conversations/:id', (req, res) => adminController.deleteConversation(req, res));
 router.get('/conversations/:id/transcript', (req, res) => adminController.getTranscript(req, res));
 router.post('/messages/:messageId/review', (req, res) => adminController.reviewFlag(req, res));
 router.post('/users/:userId/ban', (req, res) => adminController.moderateUser(req, res));

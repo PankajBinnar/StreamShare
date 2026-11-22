@@ -111,6 +111,82 @@ export class AdminController {
       pagination: result.pagination,
     });
   }
+
+  async getUsers(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { page, limit, search, role } = req.query;
+
+    const result = await adminService.getAllUsers({
+      page: page ? parseInt(page as string, 10) : 1,
+      limit: limit ? parseInt(limit as string, 10) : 20,
+      search: search as string,
+      role: role as string,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.items,
+      pagination: result.pagination,
+    });
+  }
+
+  async deleteUser(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { userId } = req.params;
+    const adminId = req.user!.userId;
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+
+    const result = await adminService.deleteUser(adminId, ipAddress, userId);
+
+    res.status(200).json({
+      success: true,
+      message: 'User permanently deleted.',
+      data: result,
+    });
+  }
+
+  async getListings(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { page, limit, search, status } = req.query;
+
+    const result = await adminService.getAllListings({
+      page: page ? parseInt(page as string, 10) : 1,
+      limit: limit ? parseInt(limit as string, 10) : 20,
+      search: search as string,
+      status: status as any,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result.items,
+      pagination: result.pagination,
+    });
+  }
+
+  async deleteListing(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { listingId } = req.params;
+    const adminId = req.user!.userId;
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+
+    const result = await adminService.deleteListing(adminId, ipAddress, listingId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Listing successfully deleted.',
+      data: result,
+    });
+  }
+
+  async deleteConversation(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+    const adminId = req.user!.userId;
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+
+    const result = await adminService.deleteConversation(adminId, ipAddress, id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Conversation and messages deleted.',
+      data: result,
+    });
+  }
 }
 
 export const adminController = new AdminController();

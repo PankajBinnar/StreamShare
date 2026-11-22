@@ -113,7 +113,7 @@ export function Navbar() {
             {/* Admin Moderation Panel Link (Strict Role Check) */}
             {isAdmin && (
               <Link
-                href="/admin/chats"
+                href="/admin/dashboard"
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
                   pathname.startsWith('/admin')
                     ? 'bg-red-950/50 border-red-500/50 text-red-200'
@@ -121,7 +121,7 @@ export function Navbar() {
                 }`}
               >
                 <ShieldAlert className="w-4 h-4 text-red-400" />
-                Admin Moderation
+                Admin Console
               </Link>
             )}
           </div>
@@ -212,11 +212,11 @@ export function Navbar() {
               </Link>
               {isAdmin && (
                 <Link
-                  href="/admin/chats"
+                  href="/admin/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-lg text-base font-medium text-red-400 bg-red-950/20"
                 >
-                  Admin Moderation
+                  Admin Console
                 </Link>
               )}
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
