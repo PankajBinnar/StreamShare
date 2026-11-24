@@ -354,6 +354,238 @@ export class AdminService {
       },
     };
   }
+
+  /**
+   * Fetch all users with search, role filters, and counts
+   */
+  async getAllUsers(options: { page?: number; limit?: number; search?: string; role?: string }) {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.min(100, Math.max(1, options.limit || 20));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (options.search) {
+      where.OR = [
+        { email: { contains: options.search, mode: 'insensitive' } },
+        { username: { contains: options.search, mode: 'insensitive' } },
+      ];
+    }
+    if (options.role && (options.role === 'ADMIN' || options.role === 'USER')) {
+      where.role = options.role;
+    }
+
+    const [total, users] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          role: true,
+          avatarUrl: true,
+          isBanned: true,
+          authProvider: true,
+          createdAt: true,
+          _count: {
+            select: {
+              listings: true,
+              sentMessages: true,
+              buyerConversations: true,
+              sellerConversations: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      items: users,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Permanently delete a user account and associated resources
+   */
+  async deleteUser(adminId: string, ipAddress: string, targetUserId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!user) {
+      throw { statusCode: 404, message: 'User not found.' };
+    }
+
+    if (user.id === adminId) {
+      throw { statusCode: 400, message: 'You cannot delete your own admin account.' };
+    }
+
+    // 1. Delete refresh tokens
+    await prisma.refreshToken.deleteMany({ where: { userId: targetUserId } });
+
+    // 2. Delete conversations and messages
+    const userConversations = await prisma.conversation.findMany({
+      where: { OR: [{ buyerId: targetUserId }, { sellerId: targetUserId }] },
+      select: { id: true },
+    });
+    const convIds = userConversations.map((c) => c.id);
+
+    if (convIds.length > 0) {
+      await prisma.message.deleteMany({ where: { conversationId: { in: convIds } } });
+      await prisma.conversation.deleteMany({ where: { id: { in: convIds } } });
+    }
+
+    // 3. Delete messages sent in other conversations
+    await prisma.message.deleteMany({ where: { senderId: targetUserId } });
+
+    // 4. Delete listings owned by user
+    await prisma.listing.deleteMany({ where: { ownerId: targetUserId } });
+
+    // 5. Delete the user
+    await prisma.user.delete({ where: { id: targetUserId } });
+
+    await this.createAuditLog({
+      adminId,
+      action: 'DELETE_USER',
+      targetType: 'USER',
+      targetId: targetUserId,
+      ipAddress,
+      metadata: { deletedEmail: user.email, deletedUsername: user.username },
+    });
+
+    await cacheService.del('admin:dashboard:stats');
+    logger.warn('Admin permanently deleted user account', { adminId, targetUserId, email: user.email });
+
+    return { success: true, deletedUserId: targetUserId };
+  }
+
+  /**
+   * Fetch all postings / listings with pagination and filters
+   */
+  async getAllListings(options: { page?: number; limit?: number; search?: string; status?: ListingStatus }) {
+    const page = Math.max(1, options.page || 1);
+    const limit = Math.min(100, Math.max(1, options.limit || 20));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (options.status) {
+      where.status = options.status;
+    }
+    if (options.search) {
+      where.OR = [
+        { platformName: { contains: options.search, mode: 'insensitive' } },
+        { description: { contains: options.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, listings] = await Promise.all([
+      prisma.listing.count({ where }),
+      prisma.listing.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          owner: {
+            select: { id: true, username: true, email: true, isBanned: true },
+          },
+          _count: {
+            select: { conversations: true },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      items: listings,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Delete a listing and purge its associated chats
+   */
+  async deleteListing(adminId: string, ipAddress: string, listingId: string) {
+    const listing = await prisma.listing.findUnique({
+      where: { id: listingId },
+    });
+
+    if (!listing) {
+      throw { statusCode: 404, message: 'Listing not found.' };
+    }
+
+    // 1. Delete conversations & messages tied to listing
+    const conversations = await prisma.conversation.findMany({
+      where: { listingId },
+      select: { id: true },
+    });
+    const convIds = conversations.map((c) => c.id);
+
+    if (convIds.length > 0) {
+      await prisma.message.deleteMany({ where: { conversationId: { in: convIds } } });
+      await prisma.conversation.deleteMany({ where: { id: { in: convIds } } });
+    }
+
+    // 2. Delete the listing
+    await prisma.listing.delete({ where: { id: listingId } });
+
+    await this.createAuditLog({
+      adminId,
+      action: 'DELETE_LISTING',
+      targetType: 'LISTING',
+      targetId: listingId,
+      ipAddress,
+      metadata: { platform: listing.platformName, ownerId: listing.ownerId },
+    });
+
+    await cacheService.del('admin:dashboard:stats');
+    await cacheService.del(`listing:${listingId}`);
+    await cacheService.delPattern('listings:*');
+
+    return { success: true, deletedListingId: listingId };
+  }
+
+  /**
+   * Delete an entire conversation
+   */
+  async deleteConversation(adminId: string, ipAddress: string, conversationId: string) {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+    });
+
+    if (!conversation) {
+      throw { statusCode: 404, message: 'Conversation not found.' };
+    }
+
+    await prisma.message.deleteMany({ where: { conversationId } });
+    await prisma.conversation.delete({ where: { id: conversationId } });
+
+    await this.createAuditLog({
+      adminId,
+      action: 'DELETE_CONVERSATION',
+      targetType: 'CONVERSATION',
+      targetId: conversationId,
+      ipAddress,
+      metadata: { buyerId: conversation.buyerId, sellerId: conversation.sellerId },
+    });
+
+    await cacheService.del('admin:dashboard:stats');
+    return { success: true, deletedConversationId: conversationId };
+  }
 }
 
 export const adminService = new AdminService();

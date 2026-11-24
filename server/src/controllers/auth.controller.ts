@@ -16,110 +16,154 @@ const cookieOptions = {
 
 export class AuthController {
   async register(req: Request, res: Response): Promise<void> {
-    const { email, username, password, role } = req.body;
-    const result = await authService.register({ email, username, password, role });
+    try {
+      const { email, username, password, role } = req.body;
+      const result = await authService.register({ email, username, password, role });
 
-    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
+      res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
 
-    res.status(201).json({
-      success: true,
-      message: 'Account registered successfully.',
-      data: {
-        accessToken: result.accessToken,
-        user: result.user,
-      },
-    });
+      res.status(201).json({
+        success: true,
+        message: 'Account registered successfully.',
+        data: {
+          accessToken: result.accessToken,
+          user: result.user,
+        },
+      });
+    } catch (err: any) {
+      res.status(err.statusCode || 400).json({
+        success: false,
+        error: err.message || 'Registration failed.',
+      });
+    }
   }
 
   async login(req: Request, res: Response): Promise<void> {
-    const { email, password } = req.body;
-    const result = await authService.login({ email, password });
+    try {
+      const { email, password } = req.body;
+      const result = await authService.login({ email, password });
 
-    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
+      res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
 
-    res.status(200).json({
-      success: true,
-      message: 'Logged in successfully.',
-      data: {
-        accessToken: result.accessToken,
-        user: result.user,
-      },
-    });
+      res.status(200).json({
+        success: true,
+        message: 'Logged in successfully.',
+        data: {
+          accessToken: result.accessToken,
+          user: result.user,
+        },
+      });
+    } catch (err: any) {
+      res.status(err.statusCode || 401).json({
+        success: false,
+        error: err.message || 'Invalid email or password.',
+      });
+    }
   }
 
   async refresh(req: Request, res: Response): Promise<void> {
-    const refreshToken = req.cookies[REFRESH_COOKIE_NAME] || req.body.refreshToken;
+    try {
+      const refreshToken = req.cookies[REFRESH_COOKIE_NAME] || req.body.refreshToken;
 
-    if (!refreshToken) {
-      res.status(401).json({
-        success: false,
-        error: 'Refresh token missing. Please login again.',
+      if (!refreshToken) {
+        res.status(401).json({
+          success: false,
+          error: 'Refresh token missing. Please login again.',
+        });
+        return;
+      }
+
+      const { accessToken, newRefreshToken } = await authService.refreshAccessToken(refreshToken);
+
+      res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, cookieOptions);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          accessToken,
+        },
       });
-      return;
+    } catch (err: any) {
+      res.status(err.statusCode || 401).json({
+        success: false,
+        error: err.message || 'Session expired. Please log in again.',
+      });
     }
-
-    const { accessToken, newRefreshToken } = await authService.refreshAccessToken(refreshToken);
-
-    res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, cookieOptions);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        accessToken,
-      },
-    });
   }
 
   async logout(req: Request, res: Response): Promise<void> {
-    const refreshToken = req.cookies[REFRESH_COOKIE_NAME];
-    await authService.logout(refreshToken);
+    try {
+      const refreshToken = req.cookies[REFRESH_COOKIE_NAME];
+      if (refreshToken) {
+        await authService.logout(refreshToken);
+      }
 
-    res.clearCookie(REFRESH_COOKIE_NAME, {
-      httpOnly: true,
-      secure: env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    });
+      res.clearCookie(REFRESH_COOKIE_NAME, {
+        httpOnly: true,
+        secure: env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+      });
 
-    res.status(200).json({
-      success: true,
-      message: 'Logged out successfully.',
-    });
+      res.status(200).json({
+        success: true,
+        message: 'Logged out successfully.',
+      });
+    } catch (err: any) {
+      res.status(200).json({
+        success: true,
+        message: 'Logged out successfully.',
+      });
+    }
   }
 
   async getMe(req: AuthenticatedRequest, res: Response): Promise<void> {
-    if (!req.user) {
-      res.status(401).json({ success: false, error: 'Unauthorized.' });
-      return;
+    try {
+      if (!req.user) {
+        res.status(401).json({ success: false, error: 'Unauthorized.' });
+        return;
+      }
+
+      const profile = await authService.getProfile(req.user.userId);
+
+      res.status(200).json({
+        success: true,
+        data: profile,
+      });
+    } catch (err: any) {
+      res.status(err.statusCode || 401).json({
+        success: false,
+        error: err.message || 'Failed to fetch profile.',
+      });
     }
-
-    const profile = await authService.getProfile(req.user.userId);
-
-    res.status(200).json({
-      success: true,
-      data: profile,
-    });
   }
 
   async googleAuth(req: Request, res: Response): Promise<void> {
-    const { idToken } = req.body;
-    if (!idToken) {
-      res.status(400).json({ success: false, error: 'Google idToken is required.' });
-      return;
+    try {
+      const { idToken } = req.body;
+      if (!idToken) {
+        res.status(400).json({ success: false, error: 'Google idToken is required.' });
+        return;
+      }
+
+      const result = await authService.googleAuth(idToken);
+
+      res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
+
+      res.status(200).json({
+        success: true,
+        message: 'Authenticated successfully with Google.',
+        data: {
+          accessToken: result.accessToken,
+          user: result.user,
+        },
+      });
+    } catch (err: any) {
+      res.status(err.statusCode || 401).json({
+        success: false,
+        error: err.message || 'Google authentication failed.',
+      });
     }
-
-    const result = await authService.googleAuth(idToken);
-
-    res.cookie(REFRESH_COOKIE_NAME, result.refreshToken, cookieOptions);
-
-    res.status(200).json({
-      success: true,
-      message: 'Authenticated successfully with Google.',
-      data: {
-        accessToken: result.accessToken,
-        user: result.user,
-      },
-    });
   }
 }
 

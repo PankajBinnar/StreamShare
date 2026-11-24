@@ -15,7 +15,6 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<Role>('USER');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,7 +54,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const res = await register(email, username, password, role);
+      const res = await register(email, username, password, 'USER');
       if (res.success) {
         router.push('/');
       } else {
@@ -100,7 +99,6 @@ export default function RegisterPage() {
               onError={() => setError('Google sign-up was cancelled or failed.')}
               theme="outline"
               size="large"
-              width="100%"
               text="signup_with"
               shape="rectangular"
             />
@@ -171,36 +169,6 @@ export default function RegisterPage() {
             <p className="text-[10px] text-slate-500 mt-1">
               Minimum 8 characters with at least one uppercase letter and one numeric character.
             </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 font-mono mb-1.5">
-              Account Role
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setRole('USER')}
-                className={`py-2 rounded-xl text-xs font-semibold border ${
-                  role === 'USER'
-                    ? 'bg-brand-600/30 border-brand-500 text-white'
-                    : 'bg-surfaceLight border-slate-700 text-slate-400'
-                }`}
-              >
-                Standard User
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('ADMIN')}
-                className={`py-2 rounded-xl text-xs font-semibold border ${
-                  role === 'ADMIN'
-                    ? 'bg-red-950/60 border-red-500 text-red-200'
-                    : 'bg-surfaceLight border-slate-700 text-slate-400'
-                }`}
-              >
-                Admin (Testing)
-              </button>
-            </div>
           </div>
 
           <button

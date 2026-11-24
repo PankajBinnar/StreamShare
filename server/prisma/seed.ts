@@ -19,6 +19,18 @@ async function main() {
   const userPasswordHash = await bcrypt.hash('UserSecurePass2026!', 12);
 
   // 1. Create Admin User
+  const pankajAdminHash = await bcrypt.hash('Pankaj@123', 12);
+  const pankajAdmin = await prisma.user.create({
+    data: {
+      email: 'pankajbinnar886@gmail.com',
+      username: 'pankaj_admin',
+      passwordHash: pankajAdminHash,
+      role: Role.ADMIN,
+      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    },
+  });
+  console.log(`✅ Created Primary Admin: ${pankajAdmin.email}`);
+
   const admin = await prisma.user.create({
     data: {
       email: 'admin@streamshare.io',

@@ -38,28 +38,28 @@ const googleAuthSchema = z.object({
 });
 
 // Auth Routes with Brute Force Throttling
-router.post('/register', authLimiter, validateRequest(registerSchema), (req, res) =>
-  authController.register(req, res)
+router.post('/register', authLimiter, validateRequest(registerSchema), (req, res, next) =>
+  authController.register(req, res).catch(next)
 );
 
-router.post('/login', authLimiter, validateRequest(loginSchema), (req, res) =>
-  authController.login(req, res)
+router.post('/login', authLimiter, validateRequest(loginSchema), (req, res, next) =>
+  authController.login(req, res).catch(next)
 );
 
-router.post('/google', authLimiter, validateRequest(googleAuthSchema), (req, res) =>
-  authController.googleAuth(req, res)
+router.post('/google', authLimiter, validateRequest(googleAuthSchema), (req, res, next) =>
+  authController.googleAuth(req, res).catch(next)
 );
 
-router.post('/refresh', authLimiter, (req, res) =>
-  authController.refresh(req, res)
+router.post('/refresh', authLimiter, (req, res, next) =>
+  authController.refresh(req, res).catch(next)
 );
 
-router.post('/logout', (req, res) =>
-  authController.logout(req, res)
+router.post('/logout', (req, res, next) =>
+  authController.logout(req, res).catch(next)
 );
 
-router.get('/me', authenticateJWT, (req, res) =>
-  authController.getMe(req, res)
+router.get('/me', authenticateJWT, (req, res, next) =>
+  authController.getMe(req, res).catch(next)
 );
 
 export default router;
