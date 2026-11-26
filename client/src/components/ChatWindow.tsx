@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Conversation, Message } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { fetchApi } from '../lib/api';
+import { fetchApi, uploadApi } from '../lib/api';
 import {
   Send,
   ShieldAlert,
@@ -14,6 +14,11 @@ import {
   AlertTriangle,
   X,
   Flag,
+  Image as ImageIcon,
+  Paperclip,
+  Maximize2,
+  ExternalLink,
+  Loader2,
 } from 'lucide-react';
 
 interface ChatWindowProps {
@@ -33,6 +38,15 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Image upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Full-screen image lightbox modal
+  const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
+
   // Reporting modal state
   const [flagModalOpen, setFlagModalOpen] = useState(false);
   const [targetMessageId, setTargetMessageId] = useState<string | null>(null);
@@ -50,6 +64,8 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
     let isMounted = true;
     setIsLoading(true);
     setErrorMsg(null);
+    setSelectedFile(null);
+    setPreviewUrl(null);
 
     async function loadChat() {
       try {
@@ -93,7 +109,11 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
     // Incoming messages
     const handleNewMessage = (payload: { message: Message; conversationId: string }) => {
       if (payload.conversationId === conversationId) {
-        setMessages((prev) => [...prev, payload.message]);
+        setMessages((prev) => {
+          // Prevent duplicates if already inserted locally
+          if (prev.some((m) => m.id === payload.message.id)) return prev;
+          return [...prev, payload.message];
+        });
         scrollToBottom();
 
         // Send read receipt if we are recipient
@@ -125,14 +145,14 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
     socket.on('new_message', handleNewMessage);
     socket.on('user_typing', handleUserTyping);
     socket.on('user_stopped_typing', handleUserStoppedTyping);
-    socket.on('messages_marked_read', handleMessagesRead);
+    socket.on('messages_read', handleMessagesRead);
 
     return () => {
-      socket.emit('leave_conversation', { conversationId });
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleUserTyping);
       socket.off('user_stopped_typing', handleUserStoppedTyping);
-      socket.off('messages_marked_read', handleMessagesRead);
+      socket.off('messages_read', handleMessagesRead);
+      socket.emit('leave_conversation', { conversationId });
     };
   }, [socket, conversationId, user?.id]);
 
@@ -144,7 +164,7 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(e.target.value);
 
-    if (!socket) return;
+    if (!socket || !conversationId) return;
 
     socket.emit('typing_start', { conversationId });
 
@@ -154,14 +174,88 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
     }, 1500);
   };
 
-  // Dispatch message via Socket.io with fallback to REST
+  // Image Selection Handler
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMsg('Image size exceeds 5MB. Please upload a smaller screenshot.');
+      return;
+    }
+
+    // Validate mime
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!allowed.includes(file.type)) {
+      setErrorMsg('Only JPEG, PNG, and WebP image formats are supported.');
+      return;
+    }
+
+    setErrorMsg(null);
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+  };
+
+  const handleClearSelectedFile = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Dispatch message (Text or Image attachment)
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const content = inputText.trim();
-    if (!content || isSending) return;
 
-    setIsSending(true);
+    // If neither text nor image is selected, return
+    if (!content && !selectedFile) return;
+    if (isSending || isUploadingImage) return;
+
     setErrorMsg(null);
+
+    // Case 1: Uploading with an Image Attachment
+    if (selectedFile) {
+      setIsUploadingImage(true);
+      try {
+        const formData = new FormData();
+        formData.append('image', selectedFile);
+        if (content) {
+          formData.append('caption', content);
+        }
+
+        const res = await uploadApi<Message>(
+          `/chat/conversations/${conversationId}/upload`,
+          formData
+        );
+
+        if (res.success && res.data) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === res.data!.id)) return prev;
+            return [...prev, res.data!];
+          });
+          setInputText('');
+          handleClearSelectedFile();
+          if (onMessageSent) onMessageSent();
+        } else {
+          setErrorMsg(res.error || 'Failed to upload proof image.');
+        }
+      } catch (err: any) {
+        setErrorMsg(err.message || 'Error uploading image.');
+      } finally {
+        setIsUploadingImage(false);
+      }
+      return;
+    }
+
+    // Case 2: Standard Text Message
+    setIsSending(true);
 
     if (socket && socket.connected) {
       socket.emit(
@@ -266,7 +360,7 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500 hidden sm:inline font-mono">
-            End-to-End Logged & Moderated
+            Encrypted & Cloudinary Moderated
           </span>
         </div>
       </div>
@@ -289,9 +383,9 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-slate-500">
             <Tv className="w-10 h-10 text-slate-700 mb-2" />
-            <p className="text-sm font-medium text-slate-400">Direct OTT Negotiation Channel</p>
+            <p className="text-sm font-medium text-slate-400">Direct OTT Negotiation & Proof Channel</p>
             <p className="text-xs text-slate-600 max-w-sm mt-1">
-              Ask about profiles, streaming device limits, and renewal dates. Never share master passwords or credit cards.
+              Ask about streaming slots, billing dates, and share proof screenshots securely via Cloudinary.
             </p>
           </div>
         ) : (
@@ -303,7 +397,7 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
                 key={msg.id}
                 className={`flex flex-col group ${isMe ? 'items-end' : 'items-start'}`}
               >
-                <div className="flex items-center gap-2 max-w-[80%]">
+                <div className="flex items-center gap-2 max-w-[85%] sm:max-w-[75%]">
                   {!isMe && (
                     <button
                       onClick={() => handleOpenFlagModal(msg.id)}
@@ -315,7 +409,7 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
                   )}
 
                   <div
-                    className={`rounded-2xl px-4 py-2.5 text-sm shadow-md break-words ${
+                    className={`rounded-2xl p-3 text-sm shadow-md break-words ${
                       isMe
                         ? 'bg-brand-600 text-white rounded-br-none'
                         : 'bg-surface border border-slate-800 text-slate-200 rounded-bl-none'
@@ -323,16 +417,38 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
                   >
                     {/* Flagged warning badge */}
                     {msg.isFlagged && (
-                      <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-medium text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30">
+                      <div className="flex items-center gap-1.5 mb-2 text-[11px] font-medium text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30">
                         <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />
                         <span>Security Alert: Flagged for Moderation</span>
                       </div>
                     )}
 
-                    <p className="leading-relaxed">{msg.content}</p>
+                    {/* Image Attachment (Proof Screenshot) */}
+                    {msg.imageUrl && (
+                      <div
+                        onClick={() => setLightboxImageUrl(msg.imageUrl || null)}
+                        className="relative group/img cursor-pointer overflow-hidden rounded-xl border border-slate-700/60 mb-2 bg-black/40 hover:border-brand-400 transition-all"
+                      >
+                        <img
+                          src={msg.imageUrl}
+                          alt="Subscription Proof Screenshot"
+                          className="w-full max-h-72 object-cover rounded-xl transition-transform duration-200 group-hover/img:scale-[1.02]"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-2 text-xs text-white font-medium backdrop-blur-[1px]">
+                          <Maximize2 className="w-4 h-4 text-brand-300" />
+                          <span>Click to inspect proof</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Message content text (caption or text message) */}
+                    {msg.content && (
+                      <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                    )}
 
                     <div
-                      className={`flex items-center justify-end gap-1.5 mt-1 text-[10px] ${
+                      className={`flex items-center justify-end gap-1.5 mt-1.5 text-[10px] ${
                         isMe ? 'text-brand-200' : 'text-slate-400'
                       }`}
                     >
@@ -369,26 +485,142 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
         </div>
       )}
 
-      {/* Message Input Box */}
+      {/* Selected Image Attachment Preview Bar */}
+      {previewUrl && (
+        <div className="px-4 py-2 border-t border-slate-800 bg-surfaceLight/80 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-3">
+            <div className="relative w-12 h-12 rounded-lg overflow-hidden border border-brand-500/50 shadow-md">
+              <img
+                src={previewUrl}
+                alt="Selected preview"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-white truncate max-w-[200px] sm:max-w-xs">
+                {selectedFile?.name}
+              </p>
+              <p className="text-[10px] text-brand-400 font-mono">
+                {selectedFile ? (selectedFile.size / 1024).toFixed(1) : 0} KB • Proof Image Ready
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleClearSelectedFile}
+            className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+            title="Cancel attachment"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Message Input Box with Attachment Trigger */}
       <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 bg-surface">
         <div className="flex items-center gap-2">
+          {/* Hidden File Input */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/jpeg,image/png,image/webp,image/jpg"
+            className="hidden"
+          />
+
+          {/* Paperclip / Image Attachment Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingImage || isSending}
+            title="Attach subscription proof screenshot"
+            className="p-2.5 rounded-xl border border-slate-700/80 bg-surfaceLight hover:bg-slate-800 text-slate-300 hover:text-brand-400 transition-colors disabled:opacity-40"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
+
+          {/* Text Input */}
           <input
             type="text"
             value={inputText}
             onChange={handleInputChange}
-            placeholder="Type your message... (press Enter to send)"
+            placeholder={
+              selectedFile
+                ? 'Add an optional caption for this proof image...'
+                : 'Type your message or attach proof... (Enter to send)'
+            }
             maxLength={2000}
+            disabled={isUploadingImage}
             className="flex-1 bg-surfaceLight border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
           />
+
+          {/* Send Button */}
           <button
             type="submit"
-            disabled={!inputText.trim() || isSending}
-            className="p-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white shadow-glow disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            disabled={(!inputText.trim() && !selectedFile) || isSending || isUploadingImage}
+            className="p-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white shadow-glow disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center min-w-[42px]"
           >
-            <Send className="w-4 h-4" />
+            {isUploadingImage ? (
+              <Loader2 className="w-4 h-4 animate-spin text-white" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
           </button>
         </div>
       </form>
+
+      {/* Full-Screen Proof Image Lightbox Modal */}
+      {lightboxImageUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setLightboxImageUrl(null)}
+        >
+          {/* Top Control Bar */}
+          <div
+            className="w-full max-w-4xl flex items-center justify-between pb-3 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <ImageIcon className="w-4 h-4 text-brand-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Subscription Verification Proof
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href={lightboxImageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-white transition-colors"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>Open Original</span>
+              </a>
+              <button
+                onClick={() => setLightboxImageUrl(null)}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                title="Close (Esc)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Centered Image */}
+          <div
+            className="relative max-w-4xl max-h-[82vh] overflow-hidden rounded-2xl border border-slate-800 shadow-2xl bg-black/60 flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightboxImageUrl}
+              alt="Full Size Proof Screenshot"
+              className="w-full h-auto max-h-[80vh] object-contain rounded-xl"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Report Modal */}
       {flagModalOpen && (
@@ -440,4 +672,3 @@ export function ChatWindow({ conversationId, onMessageSent }: ChatWindowProps) {
     </div>
   );
 }
-

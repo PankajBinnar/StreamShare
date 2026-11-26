@@ -314,6 +314,30 @@ export function AdminChatAuditModal({
                         </div>
                       )}
 
+                      {msg.imageUrl && (
+                        <div className="my-2 max-w-sm rounded-xl overflow-hidden border border-slate-700/80 bg-black/40">
+                          <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={msg.imageUrl}
+                              alt="Proof screenshot"
+                              className="w-full max-h-56 object-cover hover:opacity-90 transition-opacity"
+                              loading="lazy"
+                            />
+                          </a>
+                          <div className="p-1.5 bg-slate-900/90 flex items-center justify-between text-[10px] text-slate-400">
+                            <span>Proof Image Attachment</span>
+                            <a
+                              href={msg.imageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand-400 hover:underline"
+                            >
+                              Open Full Size ↗
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-xs text-slate-200 font-mono whitespace-pre-wrap">
                         {msg.content}
                       </p>

@@ -88,8 +88,15 @@ export function ConversationList({
               </div>
 
               {/* Last Message Snippet */}
-              <p className="text-xs text-slate-400 truncate">
-                {conv.lastMessage?.content || 'Started a new conversation'}
+              <p className="text-xs text-slate-400 truncate flex items-center gap-1">
+                {conv.lastMessage?.imageUrl ? (
+                  <>
+                    <span className="text-brand-400 font-medium">📷 [Proof Image]</span>
+                    {conv.lastMessage.content && <span>{conv.lastMessage.content}</span>}
+                  </>
+                ) : (
+                  conv.lastMessage?.content || 'Started a new conversation'
+                )}
               </p>
             </div>
           </button>

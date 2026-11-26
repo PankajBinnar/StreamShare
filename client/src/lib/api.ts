@@ -111,3 +111,46 @@ async function attemptTokenRefresh(): Promise<boolean> {
   }
 }
 
+export async function uploadApi<T>(
+  endpoint: string,
+  formData: FormData
+): Promise<ApiResponse<T>> {
+  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const headers: Record<string, string> = {};
+
+  if (currentAccessToken) {
+    headers['Authorization'] = `Bearer ${currentAccessToken}`;
+  }
+
+  try {
+    let response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      const refreshed = await attemptTokenRefresh();
+      if (refreshed && currentAccessToken) {
+        headers['Authorization'] = `Bearer ${currentAccessToken}`;
+        response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: formData,
+          credentials: 'include',
+        });
+      }
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err.message || 'Network upload request failed.',
+    };
+  }
+}
+
+

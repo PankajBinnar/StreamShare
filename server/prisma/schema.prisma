@@ -108,6 +108,8 @@ model Message {
   senderId       String
   sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   content        String
+  imageUrl       String?
+  messageType    String       @default("TEXT")
   isRead         Boolean      @default(false)
   isFlagged      Boolean      @default(false)
   flaggedReason  String?

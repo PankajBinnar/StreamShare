@@ -53,6 +53,8 @@ export interface Message {
     avatarUrl?: string | null;
   };
   content: string;
+  imageUrl?: string | null;
+  messageType?: 'TEXT' | 'IMAGE' | string;
   isRead: boolean;
   isFlagged: boolean;
   flaggedReason?: string | null;

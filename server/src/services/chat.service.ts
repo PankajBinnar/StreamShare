@@ -121,6 +121,8 @@ export class ChatService {
             id: true,
             senderId: true,
             content: true,
+            imageUrl: true,
+            messageType: true,
             createdAt: true,
             isRead: true,
           },
@@ -237,9 +239,15 @@ export class ChatService {
   }
 
   /**
-   * Persist a message with XSS sanitization, anti-phishing scan, and automated safety flagging
+   * Persist a message with XSS sanitization, anti-phishing scan, optional proof image, and automated safety flagging
    */
-  async saveMessage(conversationId: string, senderId: string, rawContent: string) {
+  async saveMessage(
+    conversationId: string,
+    senderId: string,
+    rawContent: string,
+    imageUrl?: string | null,
+    messageType: string = 'TEXT'
+  ) {
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       select: { id: true, buyerId: true, sellerId: true },
@@ -254,9 +262,13 @@ export class ChatService {
     }
 
     // 1. Sanitize XSS vectors
-    const content = sanitizeText(rawContent);
-    if (!content || content.length === 0) {
-      throw { statusCode: 400, message: 'Message content cannot be empty.' };
+    let content = rawContent ? sanitizeText(rawContent) : '';
+    if (!content && imageUrl) {
+      content = 'Shared proof screenshot';
+    }
+
+    if (!content && !imageUrl) {
+      throw { statusCode: 400, message: 'Message content or image attachment is required.' };
     }
 
     if (content.length > 2000) {
@@ -273,6 +285,8 @@ export class ChatService {
           conversationId,
           senderId,
           content,
+          imageUrl: imageUrl || null,
+          messageType: imageUrl ? 'IMAGE' : messageType,
           isRead: false,
           isFlagged: safetyCheck.isFlagged,
           flaggedReason: safetyCheck.reason,

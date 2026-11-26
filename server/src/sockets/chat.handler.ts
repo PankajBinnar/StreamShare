@@ -75,7 +75,17 @@ export function registerChatHandlers(io: SocketIOServer, socket: AuthenticatedSo
   socket.on(
     'send_message',
     async (
-      { conversationId, content }: { conversationId: string; content: string },
+      {
+        conversationId,
+        content,
+        imageUrl,
+        messageType,
+      }: {
+        conversationId: string;
+        content?: string;
+        imageUrl?: string;
+        messageType?: string;
+      },
       callback
     ) => {
       try {
@@ -91,8 +101,8 @@ export function registerChatHandlers(io: SocketIOServer, socket: AuthenticatedSo
           return;
         }
 
-        if (!conversationId || !content) {
-          if (callback) callback({ success: false, error: 'conversationId and content are required' });
+        if (!conversationId || (!content && !imageUrl)) {
+          if (callback) callback({ success: false, error: 'conversationId and content or imageUrl are required' });
           return;
         }
 
@@ -111,7 +121,9 @@ export function registerChatHandlers(io: SocketIOServer, socket: AuthenticatedSo
         const savedMessage = await chatService.saveMessage(
           conversationId,
           currentUser.userId,
-          content
+          content || '',
+          imageUrl,
+          messageType || (imageUrl ? 'IMAGE' : 'TEXT')
         );
 
         // Broadcast to all participants in conversation room
